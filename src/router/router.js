@@ -1,12 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
-
-// 1. Import Layout
-// Dùng ../ để lùi ra ngoài thư mục router, rồi đi vào layouts
 import MainLayout from '../layouts/MainLayout.vue'
-
-// 2. Import View
-// Lưu ý: Thư mục trong ảnh là "view" (không có s) và nằm trong "admin"
 import DiscountPage from '../view/admin/DiscountPage.vue'
+// 1. Import trang mới
+import AddDiscountPage from '../view/admin/AddDiscountPage.vue'
 
 const routes = [
   {
@@ -14,13 +10,16 @@ const routes = [
     component: MainLayout,
     children: [
       {
-        // Khi vào đường dẫn /discounts sẽ hiện trang này
         path: 'discounts',
         name: 'Discounts',
         component: DiscountPage
       },
-      // Sau này bạn thêm trang Dashboard thì import tương tự:
-      // { path: 'dashboard', component: DashboardPage }
+      // 2. Thêm route cho trang thêm mới
+      {
+        path: 'discounts/create',
+        name: 'AddDiscount',
+        component: AddDiscountPage
+      }
     ]
   }
 ]
