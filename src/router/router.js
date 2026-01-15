@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
 import DiscountPage from '../view/admin/DiscountPage.vue'
-// 1. Import trang mới
 import AddDiscountPage from '../view/admin/AddDiscountPage.vue'
+import DetailDiscountPage from '../view/admin/DetailDiscountPage.vue'
 
 const routes = [
   {
@@ -14,11 +14,15 @@ const routes = [
         name: 'Discounts',
         component: DiscountPage
       },
-      // 2. Thêm route cho trang thêm mới
       {
-        path: 'discounts/create',
+        path: 'discount/create',
         name: 'AddDiscount',
         component: AddDiscountPage
+      },
+      {
+        path: 'discount/detail/:id',
+        name: 'DetailDiscount',
+        component: DetailDiscountPage
       }
     ]
   }

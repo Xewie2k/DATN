@@ -3,7 +3,6 @@
 </template>
 
 <style>
-/* Reset mặc định để giao diện không bị viền trắng */
 body {
   margin: 0;
   padding: 0;

@@ -119,6 +119,7 @@ const toggleMenu = (index) => {
   flex-direction: column;
   padding: 20px;
   box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+  border-right: 2px solid #ffb3b3;
 }
 
 .logo {
@@ -224,7 +225,7 @@ const toggleMenu = (index) => {
   justify-content: flex-end;
   align-items: center;
   padding: 0 30px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 2px solid #ffb3b3;
 }
 
 .icon-btn {
