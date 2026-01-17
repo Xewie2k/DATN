@@ -163,11 +163,11 @@
                     </div>
                  </td>
               </tr>
-              <tr v-for="(item, index) in variantsDisplay" :key="item.id">
+              <tr v-for="(item, index) in paginatedVariantsDisplay" :key="item.id">
                 <td class="text-center">
                   <input type="checkbox" class="custom-checkbox" :value="item.id" v-model="selectedVariantIds" :disabled="isEnded">
                 </td>
-                <td class="text-center">{{ index + 1 }}</td>
+                <td class="text-center">{{ (currentDetailPage - 1) * detailItemsPerPage + index + 1 }}</td>
                 <td class="font-weight-bold text-primary">{{ item.maChiTietSanPham }}</td>
                 <td class="text-wrap-name text-center">{{ item.tenSanPham }}</td>
                 <td class="text-center">{{ item.tenThuongHieu }}</td>
@@ -182,6 +182,12 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="pagination" v-if="totalDetailPages > 0">
+            <button class="page-btn" @click="changeDetailPage(currentDetailPage - 1)" :disabled="currentDetailPage === 1"><i class="fa-solid fa-chevron-left"></i></button>
+            <button class="page-btn active">{{ currentDetailPage }}</button>
+            <button class="page-btn" @click="changeDetailPage(currentDetailPage + 1)" :disabled="currentDetailPage === totalDetailPages"><i class="fa-solid fa-chevron-right"></i></button>
         </div>
       </div>
     </div>
@@ -210,11 +216,13 @@ const formData = reactive({
 });
 
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = 5;
 const rawVariants = ref([]);
 const selectedVariantIds = ref([]);
 const searchKeyword = ref('');
 const isLoading = ref(false);
+const currentDetailPage = ref(1);
+const detailItemsPerPage = 5;
 
 // --- COMPUTED (Tái sử dụng từ trang Create) ---
 const productGroups = computed(() => {
@@ -269,6 +277,25 @@ watch(searchKeyword, () => { currentPage.value = 1; });
 
 const variantsDisplay = computed(() => {
   return rawVariants.value.filter(v => selectedVariantIds.value.includes(v.id));
+});
+
+const totalDetailPages = computed(() => Math.ceil(variantsDisplay.value.length / detailItemsPerPage));
+
+const paginatedVariantsDisplay = computed(() => {
+  const start = (currentDetailPage.value - 1) * detailItemsPerPage;
+  const end = start + detailItemsPerPage;
+  return variantsDisplay.value.slice(start, end);
+});
+
+const changeDetailPage = (page) => {
+  if (page >= 1 && page <= totalDetailPages.value) currentDetailPage.value = page;
+};
+
+// Watch variantsDisplay để reset trang chi tiết nếu số lượng thay đổi
+watch(() => variantsDisplay.value.length, () => {
+  if (currentDetailPage.value > totalDetailPages.value) {
+    currentDetailPage.value = Math.max(1, totalDetailPages.value);
+  }
 });
 
 const isAllVariantsSelected = computed(() => {
@@ -425,7 +452,7 @@ onMounted(() => {
 * { box-sizing: border-box; }
 .discount-page { padding-bottom: 30px; font-family: 'Inter', 'Segoe UI', sans-serif; }
 
-.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; margin-top: 10px; }
 .page-title { font-size: 22px; font-weight: 700; color: #1e293b; margin: 0; }
 .btn-back { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
 .btn-back:hover { background: #475569; }

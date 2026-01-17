@@ -86,8 +86,8 @@
                 <p>Không tìm thấy dữ liệu phù hợp</p>
               </td>
             </tr>
-            <tr v-for="(item, index) in filteredList" :key="item.id">
-              <td class="text-center">{{ index + 1 }}</td>
+            <tr v-for="(item, index) in paginatedDiscounts" :key="item.id">
+              <td class="text-center">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
               <td><strong>{{ item.maDotGiamGia }}</strong></td>
               <td>{{ item.tenDotGiamGia }}</td>
               <td>
@@ -117,17 +117,17 @@
         </table>
       </div>
 
-      <div class="pagination" v-if="filteredList.length > 0">
-        <button class="page-btn"><i class="fa-solid fa-chevron-left"></i></button>
-        <button class="page-btn active">1</button>
-        <button class="page-btn"><i class="fa-solid fa-chevron-right"></i></button>
+      <div class="pagination" v-if="totalPages > 0">
+        <button class="page-btn" @click="changePage(currentPage - 1)" :disabled="currentPage === 1"><i class="fa-solid fa-chevron-left"></i></button>
+        <button class="page-btn active">{{ currentPage }}</button>
+        <button class="page-btn" @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages"><i class="fa-solid fa-chevron-right"></i></button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { discountService } from '@/service/DiscountService';
 
@@ -142,6 +142,9 @@ const filters = reactive({
   type: '',      // '' | 'percent' | 'money'
   status: ''     // '' | 'active' | 'upcoming' | 'ended' | 'disabled'
 });
+
+const currentPage = ref(1);
+const itemsPerPage = 5;
 
 // --- HELPER FORMAT ---
 const formatCurrency = (value) => {
@@ -239,6 +242,22 @@ const filteredList = computed(() => {
   });
 });
 
+// --- PHÂN TRANG ---
+const totalPages = computed(() => Math.ceil(filteredList.value.length / itemsPerPage));
+
+const paginatedDiscounts = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredList.value.slice(start, end);
+});
+
+const changePage = (page) => {
+  if (page >= 1 && page <= totalPages.value) currentPage.value = page;
+};
+
+// Reset trang về 1 khi bộ lọc thay đổi
+watch(filters, () => { currentPage.value = 1; }, { deep: true });
+
 const resetFilters = () => {
   filters.keyword = '';
   filters.startDate = '';
@@ -266,7 +285,7 @@ onMounted(() => {
 <style scoped>
 * { box-sizing: border-box; }
 .discount-page { padding-bottom: 30px; }
-.page-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; color: #1e293b; }
+.page-title { font-size: 22px; font-weight: 700; margin-bottom: 30px; margin-top: 10px; color: #1e293b; }
 .card { background: #fff; border-radius: 10px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .filter-row { display: flex; gap: 20px; flex-wrap: wrap; }
 .mt-3 { margin-top: 20px; }
@@ -313,6 +332,7 @@ onMounted(() => {
 .page-btn { width: 36px; height: 36px; border: 1px solid #e2e8f0; background: white; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
 .page-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
 .page-btn.active { background: #333; color: white; border-color: #333; }
+.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .status-active { background: #dcfce7; color: #166534; }
 .status-upcoming { background: #fef3c7; color: #b45309; }
 .status-ended { background: #f1f5f9; color: #64748b; }

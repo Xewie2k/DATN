@@ -13,11 +13,11 @@
             @click="toggleMenu(index)"
           >
             <div class="menu-link">
-              <span class="icon" v-html="item.icon"></span>
+              <span class="material-icons icon">{{ item.icon }}</span>
               <span class="label">{{ item.label }}</span>
             </div>
             <span v-if="item.children" class="arrow" :class="{ rotated: item.isOpen }">
-              <i class="fa-solid fa-chevron-down"></i>
+              <span class="material-icons">expand_more</span>
             </span>
           </div>
 
@@ -34,8 +34,10 @@
 
     <main class="main-wrapper">
       <header class="top-header">
-        <button class="icon-btn"><i class="fa-regular fa-moon"></i></button>
-        <button class="icon-btn"><i class="fa-regular fa-user"></i></button>
+    <button class="icon-btn"><span class="material-icons cursor-pointer">dark_mode</span></button>
+    <div class="header-divider"></div>
+        <button class="icon-btn"><span class="material-icons">account_circle</span></button>
+    <button class="icon-btn"><span class="material-icons small">expand_more</span></button>
       </header>
 
       <div class="content-body">
@@ -52,25 +54,25 @@ import logo from '../images/logo_moi.jpg'; // Import logo
 const menuItems = ref([
   {
     label: 'Tổng quan',
-    icon: '<i class="fa-solid fa-table-cells-large"></i>',
+    icon: 'grid_view',
     link: '/dashboard',
     active: false
   },
   {
     label: 'Quản lý Hóa Đơn',
-    icon: '<i class="fa-solid fa-bag-shopping"></i>',
+    icon: 'shopping_bag',
     link: '/invoices',
     active: false
   },
   {
     label: 'Bán Hàng Tại Quầy',
-    icon: '<i class="fa-solid fa-cart-shopping"></i>',
+    icon: 'shopping_cart',
     link: '/pos',
     active: false
   },
   {
-    label: 'Quản lý Sản phẩm',
-    icon: '<i class="fa-solid fa-box-open"></i>',
+    label: 'Quản Lý Sản phẩm',
+    icon: 'inventory_2',
     isOpen: false,
     children: [
       { label: 'Danh sách sản phẩm', link: '/products' },
@@ -78,8 +80,8 @@ const menuItems = ref([
     ]
   },
   {
-    label: 'Quản lý Tài khoản',
-    icon: '<i class="fa-solid fa-users"></i>',
+    label: 'Quản Lý Tài khoản',
+    icon: 'group',
     isOpen: false,
     children: [
       { label: 'Nhân viên', link: '/staff' },
@@ -87,8 +89,8 @@ const menuItems = ref([
     ]
   },
   {
-    label: 'Quản lý Khuyến Mãi',
-    icon: '<i class="fa-solid fa-tags"></i>',
+    label: 'Quản Lý Giảm Giá',
+    icon: 'local_offer',
     isOpen: true, // Giữ nguyên dòng này nếu bạn muốn menu con luôn xổ xuống sẵn
     active: false, // <--- SỬA DÒNG NÀY: Chuyển từ true thành false
     children: [
@@ -109,17 +111,17 @@ const toggleMenu = (index) => {
 .layout {
   display: flex;
   height: 100vh;
-  background: #E5E5E5;
+  background: #f9f9f9;
 }
 
 .sidebar {
-  width: 260px;
+  width: 240px;
   background: #ffffff;
   display: flex;
   flex-direction: column;
   padding: 20px;
   box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-  border-right: 2px solid #ffb3b3;
+  border-right: 1.5px solid #d7d6d6;
 }
 
 .logo {
@@ -127,7 +129,7 @@ const toggleMenu = (index) => {
   margin-bottom: 30px;
 }
 .logo img {
-  width: 150px;
+  width: 80px;
 }
 
 .menu {
@@ -156,9 +158,12 @@ const toggleMenu = (index) => {
 }
 
 .menu-link .icon {
-  width: 20px;
-  text-align: center;
-  font-size: 18px;
+  width: 30px;
+  height: 30px;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* --- PHẦN ĐÃ SỬA --- */
@@ -219,13 +224,14 @@ const toggleMenu = (index) => {
 }
 
 .top-header {
-  height: 60px;
+  height: 65px;
   background: #fff;
   display: flex;
   justify-content: flex-end;
   align-items: center;
   padding: 0 30px;
-  border-bottom: 2px solid #ffb3b3;
+  border-bottom: 1.5px solid #d7d6d6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .icon-btn {
@@ -236,8 +242,21 @@ const toggleMenu = (index) => {
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
+  color: #6b7280;
 }
 .icon-btn:hover { background: #f1f1f1; }
+
+.header-divider {
+  height: 24px;
+  width: 1px;
+  background-color: #d1d5db;
+  margin-left: 15px;
+}
+
+/* Thu hẹp khoảng cách giữa icon account và mũi tên (cursor) */
+.icon-btn:last-child {
+  margin-left: 2px;
+}
 
 .content-body {
   flex: 1;
