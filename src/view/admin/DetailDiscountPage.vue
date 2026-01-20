@@ -41,11 +41,6 @@
             <input v-model.number="formData.giaTriGiamGia" type="number" class="form-control" placeholder="Nhập giá trị..." :disabled="isEnded" />
           </div>
 
-          <div class="form-group" v-if="formData.loaiGiamGia === false">
-            <label class="label">Giảm tối đa (VNĐ):</label>
-            <input v-model.number="formData.soTienGiamToiDa" type="number" class="form-control" placeholder="Nhập số tiền tối đa..." :disabled="isEnded" />
-          </div>
-
           <div class="form-group">
             <label class="label">Ngày bắt đầu:</label>
             <input v-model="formData.ngayBatDau" type="date" class="form-control" :disabled="isEnded" />
@@ -131,8 +126,36 @@
           <h3 class="section-title">Danh sách chi tiết sản phẩm được áp dụng
             <span v-if="selectedVariantIds.length" class="count-tag">({{ selectedVariantIds.length }})</span>
           </h3>
-          <button class="btn-danger-outline" @click="removeAll" v-if="selectedVariantIds.length > 0 && !isEnded">
-             <i class="fa-solid fa-trash"></i> Xóa tất cả
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn-danger-outline" @click="removeAll" v-if="selectedVariantIds.length > 0 && !isEnded">
+               <i class="fa-solid fa-trash"></i> Xóa tất cả
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-grid mb-3" v-if="selectedVariantIds.length > 0">
+          <select v-model="detailFilters.brand" class="form-select-sm">
+            <option value="">-- Thương hiệu --</option>
+            <option v-for="opt in filterOptions.brands" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+          <select v-model="detailFilters.material" class="form-select-sm">
+            <option value="">-- Chất liệu --</option>
+            <option v-for="opt in filterOptions.materials" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+          <select v-model="detailFilters.size" class="form-select-sm">
+            <option value="">-- Kích cỡ --</option>
+            <option v-for="opt in filterOptions.sizes" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+          <select v-model="detailFilters.color" class="form-select-sm">
+            <option value="">-- Màu sắc --</option>
+            <option v-for="opt in filterOptions.colors" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+          <select v-model="detailFilters.sole" class="form-select-sm">
+            <option value="">-- Đế giày --</option>
+            <option v-for="opt in filterOptions.soles" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+          <button class="btn-clear-filter" @click="Object.keys(detailFilters).forEach(k => detailFilters[k] = '')" title="Xóa bộ lọc">
+             <i class="fa-solid fa-filter-circle-xmark"></i>
           </button>
         </div>
 
@@ -198,6 +221,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { discountService } from '@/service/DiscountService';
 import { useRoute, useRouter } from 'vue-router';
+import Swal from 'sweetalert2';
 
 const route = useRoute();
 const router = useRouter();
@@ -209,7 +233,6 @@ const formData = reactive({
   tenDotGiamGia: '',
   loaiGiamGia: false, // false: %, true: VND
   giaTriGiamGia: null,
-  soTienGiamToiDa: null,
   ngayBatDau: '',
   ngayKetThuc: '',
   trangThai: true
@@ -223,6 +246,13 @@ const searchKeyword = ref('');
 const isLoading = ref(false);
 const currentDetailPage = ref(1);
 const detailItemsPerPage = 5;
+const detailFilters = reactive({
+  brand: '',
+  material: '',
+  color: '',
+  size: '',
+  sole: ''
+});
 
 // --- COMPUTED (Tái sử dụng từ trang Create) ---
 const productGroups = computed(() => {
@@ -275,8 +305,28 @@ const changePage = (page) => {
 
 watch(searchKeyword, () => { currentPage.value = 1; });
 
+const allSelectedVariants = computed(() => rawVariants.value.filter(v => selectedVariantIds.value.includes(v.id)));
+
+const filterOptions = computed(() => {
+  const data = allSelectedVariants.value;
+  const getOptions = (key) => [...new Set(data.map(item => item[key]))].filter(Boolean).sort();
+  return {
+    brands: getOptions('tenThuongHieu'),
+    materials: getOptions('tenChatLieu'),
+    colors: getOptions('tenMauSac'),
+    sizes: getOptions('tenKichThuoc'),
+    soles: getOptions('tenLoaiSan')
+  };
+});
+
 const variantsDisplay = computed(() => {
-  return rawVariants.value.filter(v => selectedVariantIds.value.includes(v.id));
+  let list = allSelectedVariants.value;
+  if (detailFilters.brand) list = list.filter(v => v.tenThuongHieu === detailFilters.brand);
+  if (detailFilters.material) list = list.filter(v => v.tenChatLieu === detailFilters.material);
+  if (detailFilters.color) list = list.filter(v => v.tenMauSac === detailFilters.color);
+  if (detailFilters.size) list = list.filter(v => v.tenKichThuoc === detailFilters.size);
+  if (detailFilters.sole) list = list.filter(v => v.tenLoaiSan === detailFilters.sole);
+  return list;
 });
 
 const totalDetailPages = computed(() => Math.ceil(variantsDisplay.value.length / detailItemsPerPage));
@@ -297,6 +347,9 @@ watch(() => variantsDisplay.value.length, () => {
     currentDetailPage.value = Math.max(1, totalDetailPages.value);
   }
 });
+
+// Reset trang chi tiết khi tìm kiếm biến thể
+watch(detailFilters, () => { currentDetailPage.value = 1; }, { deep: true });
 
 const isAllVariantsSelected = computed(() => {
    return variantsDisplay.value.length > 0 &&
@@ -343,7 +396,7 @@ const loadData = async () => {
 
   } catch (e) {
     console.error("Lỗi tải dữ liệu chi tiết: ", e);
-    alert("Không thể tải dữ liệu đợt giảm giá.");
+    Swal.fire('Lỗi', 'Không thể tải dữ liệu đợt giảm giá.', 'error');
   } finally {
     isLoading.value = false;
   }
@@ -373,20 +426,33 @@ const toggleAllVariants = (e) => {
   }
 };
 
-const removeAll = () => {
-    if(confirm('Bạn có chắc muốn bỏ chọn tất cả sản phẩm?')) {
-        selectedVariantIds.value = [];
+const removeAll = async () => {
+    const result = await Swal.fire({
+        title: 'Xác nhận',
+        text: "Bạn có chắc muốn bỏ chọn tất cả sản phẩm?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Xóa tất cả',
+        cancelButtonText: 'Hủy'
+    });
+
+    if(result.isConfirmed) {
+       selectedVariantIds.value = [];
+       Swal.fire('Đã xóa', 'Danh sách sản phẩm đã được làm trống.', 'success');
     }
 };
 
 const submitUpdate = async () => {
   if (!formData.tenDotGiamGia || !formData.ngayBatDau || !formData.ngayKetThuc) {
-    alert("Vui lòng nhập đủ thông tin đợt giảm giá");
+    Swal.fire('Thông báo', 'Vui lòng nhập đủ thông tin đợt giảm giá', 'warning');
     return;
   }
 
   if (selectedVariantIds.value.length === 0) {
-      if(!confirm("Đợt giảm giá này chưa chọn sản phẩm nào. Bạn có chắc muốn lưu không?")) return;
+      const confirmEmpty = await Swal.fire({ title: 'Cảnh báo', text: "Đợt giảm giá này chưa chọn sản phẩm nào. Bạn có chắc muốn lưu không?", icon: 'question', showCancelButton: true });
+      if(!confirmEmpty.isConfirmed) return;
   }
 
   // Payload gửi đi bao gồm Info + List ID sản phẩm
@@ -398,26 +464,35 @@ const submitUpdate = async () => {
   try {
     isLoading.value = true;
     await discountService.update(discountId, payload);
-    alert("Cập nhật thành công!");
+    await Swal.fire('Thành công', 'Cập nhật đợt giảm giá thành công!', 'success');
     router.push({ name: 'Discounts' }); // Quay lại trang danh sách (tên route trong router của bạn)
   } catch (e) {
-    alert("Lỗi cập nhật: " + (e.response?.data?.message || e.message));
+    Swal.fire('Lỗi', "Lỗi cập nhật: " + (e.response?.data?.message || e.message), 'error');
   } finally {
     isLoading.value = false;
   }
 };
 
 const softDelete = async () => {
-  if (!confirm("Bạn có chắc muốn xóa đợt giảm giá này?")) return;
+  const result = await Swal.fire({
+    title: 'Bạn có chắc chắn?',
+    text: "Bạn muốn xóa đợt giảm giá này? Hành động này không thể hoàn tác!",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonColor: '#64748b',
+    confirmButtonText: 'Vâng, xóa nó!'
+  });
+  if (!result.isConfirmed) return;
 
   try {
     isLoading.value = true;
     // Gọi hàm delete để kích hoạt logic xóa mềm (setXoaMem = true) ở Backend
     await discountService.delete(discountId);
-    alert("Đã xóa thành công!");
+    await Swal.fire('Đã xóa!', 'Đợt giảm giá đã được xóa thành công.', 'success');
     router.push({ name: 'Discounts' });
   } catch (e) {
-    alert("Lỗi xóa: " + (e.response?.data?.message || e.message));
+    Swal.fire('Lỗi', "Lỗi xóa: " + (e.response?.data?.message || e.message), 'error');
   } finally {
     isLoading.value = false;
   }
@@ -511,6 +586,17 @@ onMounted(() => {
 .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .section-title { font-size: 16px; font-weight: 700; color: #1e293b; margin: 0; }
 .count-tag { background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px; }
+
+.d-flex { display: flex; }
+.align-items-center { align-items: center; }
+.gap-2 { gap: 8px; }
+.me-2 { margin-right: 8px; }
+.mb-3 { margin-bottom: 12px; }
+
+.filter-grid { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.form-select-sm { padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; outline: none; background-color: #fff; min-width: 120px; }
+.btn-clear-filter { background: #f1f5f9; border: 1px solid #cbd5e1; color: #64748b; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.btn-clear-filter:hover { background: #e2e8f0; color: #ef4444; border-color: #ef4444; }
 
 /* Utilities */
 .text-center { text-align: center; }

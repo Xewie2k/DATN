@@ -59,7 +59,7 @@ const menuItems = ref([
     active: false
   },
   {
-    label: 'Quản lý Hóa Đơn',
+    label: 'Quản Lý Hóa Đơn',
     icon: 'shopping_bag',
     link: '/invoices',
     active: false
@@ -71,7 +71,7 @@ const menuItems = ref([
     active: false
   },
   {
-    label: 'Quản Lý Sản phẩm',
+    label: 'Quản Lý Sản Phẩm',
     icon: 'inventory_2',
     isOpen: false,
     children: [
@@ -80,7 +80,7 @@ const menuItems = ref([
     ]
   },
   {
-    label: 'Quản Lý Tài khoản',
+    label: 'Quản Lý Tài Khoản',
     icon: 'group',
     isOpen: false,
     children: [
@@ -89,7 +89,7 @@ const menuItems = ref([
     ]
   },
   {
-    label: 'Quản Lý Giảm Giá',
+    label: 'Quản Lý Khuyến Mãi',
     icon: 'local_offer',
     isOpen: true, // Giữ nguyên dòng này nếu bạn muốn menu con luôn xổ xuống sẵn
     active: false, // <--- SỬA DÒNG NÀY: Chuyển từ true thành false

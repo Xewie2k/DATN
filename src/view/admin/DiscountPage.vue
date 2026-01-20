@@ -72,7 +72,6 @@
               <th>Tên đợt</th>
               <th>Loại giảm</th>
               <th class="text-right">Giá trị</th>
-              <th class="text-right">Giảm tối đa</th>
               <th>Ngày bắt đầu</th>
               <th>Ngày kết thúc</th>
               <th class="text-center">Trạng thái</th>
@@ -97,9 +96,6 @@
               </td>
               <td class="text-right highlight-text">
                 {{ item.loaiGiamGia ? formatCurrency(item.giaTriGiamGia) : item.giaTriGiamGia + '%' }}
-              </td>
-              <td class="text-right">
-                 {{ item.soTienGiamToiDa ? formatCurrency(item.soTienGiamToiDa) : '-' }}
               </td>
               <td>{{ formatDate(item.ngayBatDau) }}</td>
               <td>{{ formatDate(item.ngayKetThuc) }}</td>
