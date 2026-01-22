@@ -140,6 +140,7 @@ export const discountService = {
 
                 return {
                     ...item,
+                    giaNiemYet: item.giaNiemYet || item.gia_niem_yet || item.giaBan, // Map Listed Price (fallback to giaBan if null)
                     maSanPham: parentProduct.maSanPham || 'SP-UNKNOWN',
                     tenSanPham: sanPhamNameMap[item.idSanPham] || 'Sản phẩm lỗi',
                     tenMauSac: mauSacMap[item.idMauSac] || 'Không xác định',

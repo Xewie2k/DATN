@@ -169,6 +169,7 @@
                 <th class="text-center" width="50">STT</th>
                 <th>Mã SP (CT)</th>
                 <th class="text-center">Tên sản phẩm</th>
+                <th class="text-center">Giá bán</th>
                 <th class="text-center">Thương hiệu</th>
                 <th class="text-center">Số lượng</th>
                 <th class="text-center">Chất liệu</th>
@@ -193,6 +194,18 @@
                 <td class="text-center">{{ (currentDetailPage - 1) * detailItemsPerPage + index + 1 }}</td>
                 <td class="font-weight-bold text-primary">{{ item.maChiTietSanPham }}</td>
                 <td class="text-wrap-name text-center">{{ item.tenSanPham }}</td>
+                <td class="text-center">
+                    <div v-if="getProductDisplay(item).hasDiscount">
+                        <div class="old-price">{{ formatCurrency(getProductDisplay(item).originalPrice) }}</div>
+                        <div class="new-price">
+                            {{ formatCurrency(getProductDisplay(item).finalPrice) }}
+                            <span class="discount-tag">{{ getProductDisplay(item).badge }}</span>
+                        </div>
+                    </div>
+                    <div v-else class="font-weight-bold">
+                        {{ formatCurrency(item.giaNiemYet) }}
+                    </div>
+                </td>
                 <td class="text-center">{{ item.tenThuongHieu }}</td>
                 <td class="text-center">{{ item.soLuong }}</td>
                 <td class="text-center">{{ item.tenChatLieu }}</td>
@@ -253,6 +266,7 @@ const detailFilters = reactive({
   size: '',
   sole: ''
 });
+const activeDiscountsMap = ref({});
 
 // --- COMPUTED (Tái sử dụng từ trang Create) ---
 const productGroups = computed(() => {
@@ -372,14 +386,28 @@ const formatDateForInput = (dateInput) => {
     return date.toISOString().split('T')[0];
 };
 
+// Helper: Parse date từ API (có thể là array hoặc string)
+const parseDate = (input) => {
+    if (Array.isArray(input)) {
+        return new Date(input[0], input[1] - 1, input[2]);
+    }
+    return new Date(input);
+};
+
 const loadData = async () => {
   isLoading.value = true;
   try {
     // 1. Load tất cả biến thể sản phẩm trước để có data map
     rawVariants.value = await discountService.getAllProductDetails();
+    // 1. Load data parallel
+    const [variants, discountInfo, allDiscounts] = await Promise.all([
+        discountService.getAllProductDetails(),
+        discountService.getOne(discountId),
+        discountService.getAll()
+    ]);
 
-    // 2. Load thông tin đợt giảm giá
-    const discountInfo = await discountService.getOne(discountId);
+    rawVariants.value = variants;
+
     if (discountInfo) {
         Object.assign(formData, discountInfo);
         // Format lại ngày tháng để hiển thị đúng trên input type="date"
@@ -394,12 +422,69 @@ const loadData = async () => {
         selectedVariantIds.value = appliedDetails.map(item => item.idChiTietSanPham);
     }
 
+    // 4. Load active discounts
+    await loadActiveDiscounts(allDiscounts);
+
   } catch (e) {
     console.error("Lỗi tải dữ liệu chi tiết: ", e);
     Swal.fire('Lỗi', 'Không thể tải dữ liệu đợt giảm giá.', 'error');
   } finally {
     isLoading.value = false;
   }
+};
+
+const loadActiveDiscounts = async (allDiscounts) => {
+    const now = new Date();
+    const active = allDiscounts.filter(d => {
+        if (!d.trangThai) return false;
+        const start = parseDate(d.ngayBatDau);
+        const end = parseDate(d.ngayKetThuc);
+        start.setHours(0,0,0,0);
+        end.setHours(23,59,59,999);
+        return now >= start && now <= end;
+    });
+
+    const map = {};
+    for (const d of active) {
+        const details = await discountService.getDiscountDetails(d.id);
+        details.forEach(det => {
+            if (!map[det.idChiTietSanPham]) map[det.idChiTietSanPham] = [];
+            map[det.idChiTietSanPham].push({
+                value: d.giaTriGiamGia,
+                isMoney: d.loaiGiamGia
+            });
+        });
+    }
+    activeDiscountsMap.value = map;
+};
+
+const getProductDisplay = (variant) => {
+    // Use Listed Price (giaNiemYet) as the base for discount calculation
+    const price = variant.giaNiemYet || 0;
+    const discounts = activeDiscountsMap.value[variant.id];
+
+    if (!discounts || discounts.length === 0) {
+        return { hasDiscount: false, finalPrice: price, originalPrice: price, badge: null };
+    }
+
+    let minPrice = price;
+    let bestDiscount = null;
+
+    discounts.forEach(d => {
+        const discountAmount = d.isMoney ? d.value : (price * d.value / 100);
+        const currentPrice = price - discountAmount;
+        if (currentPrice < minPrice) {
+            minPrice = currentPrice;
+            bestDiscount = d;
+        }
+    });
+
+    const badge = bestDiscount.isMoney ? `-${Math.round((bestDiscount.value/price)*100)}%` : `-${bestDiscount.value}%`;
+    return { hasDiscount: true, finalPrice: Math.max(0, minPrice), originalPrice: price, badge };
+};
+
+const formatCurrency = (value) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 };
 
 const isGroupSelected = (parentId) => {
@@ -444,6 +529,38 @@ const removeAll = async () => {
     }
 };
 
+const checkOverlaps = async (newStart, newEnd, selectedIds) => {
+    const allDiscounts = await discountService.getAll();
+    const overlappingDiscounts = allDiscounts.filter(d => {
+        if (d.id == discountId) return false; // Bỏ qua chính nó
+        if (!d.trangThai) return false;
+
+        const dStart = parseDate(d.ngayBatDau);
+        const dEnd = parseDate(d.ngayKetThuc);
+        const nStart = new Date(newStart);
+        const nEnd = new Date(newEnd);
+
+        dStart.setHours(0,0,0,0); dEnd.setHours(23,59,59,999);
+        nStart.setHours(0,0,0,0); nEnd.setHours(23,59,59,999);
+
+        return nStart <= dEnd && nEnd >= dStart;
+    });
+
+    for (const discount of overlappingDiscounts) {
+        const details = await discountService.getDiscountDetails(discount.id);
+        const conflict = details.find(detail => selectedIds.includes(detail.idChiTietSanPham));
+        if (conflict) {
+             const variant = rawVariants.value.find(v => v.id === conflict.idChiTietSanPham);
+             return {
+                 overlap: true,
+                 discountName: discount.tenDotGiamGia,
+                 productName: variant ? variant.tenSanPham : 'Sản phẩm'
+             };
+        }
+    }
+    return { overlap: false };
+};
+
 const submitUpdate = async () => {
   if (!formData.tenDotGiamGia || !formData.ngayBatDau || !formData.ngayKetThuc) {
     Swal.fire('Thông báo', 'Vui lòng nhập đủ thông tin đợt giảm giá', 'warning');
@@ -453,6 +570,13 @@ const submitUpdate = async () => {
   if (selectedVariantIds.value.length === 0) {
       const confirmEmpty = await Swal.fire({ title: 'Cảnh báo', text: "Đợt giảm giá này chưa chọn sản phẩm nào. Bạn có chắc muốn lưu không?", icon: 'question', showCancelButton: true });
       if(!confirmEmpty.isConfirmed) return;
+  }
+
+  // Validate Overlap
+  const overlapCheck = await checkOverlaps(formData.ngayBatDau, formData.ngayKetThuc, selectedVariantIds.value);
+  if (overlapCheck.overlap) {
+    Swal.fire('Lỗi trùng lặp', `Sản phẩm "${overlapCheck.productName}" đã nằm trong đợt giảm giá "${overlapCheck.discountName}" trong khoảng thời gian này.`, 'error');
+    return;
   }
 
   // Payload gửi đi bao gồm Info + List ID sản phẩm
@@ -583,6 +707,27 @@ onMounted(() => {
 .custom-table tr:hover td { background-color: #f8fafc; }
 
 /* Detail Section */
+.discount-tag {
+  display: inline-block;
+  background-color: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.old-price {
+    text-decoration: line-through;
+    color: #94a3b8;
+    font-size: 12px;
+}
+.new-price {
+    color: #ef4444;
+    font-weight: bold;
+}
+
 .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .section-title { font-size: 16px; font-weight: 700; color: #1e293b; margin: 0; }
 .count-tag { background: #e0f2fe; color: #0284c7; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px; }

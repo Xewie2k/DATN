@@ -162,6 +162,7 @@
                 <th class="text-center" width="50">STT</th>
                 <th>Mã SP (CT)</th>
                 <th class="text-center">Tên sản phẩm</th>
+                <th class="text-center">Giá bán</th>
                 <th class="text-center">Thương hiệu</th>
                 <th class="text-center">Số lượng</th>
                 <th class="text-center">Chất liệu</th>
@@ -186,6 +187,16 @@
                 <td class="text-center">{{ (currentDetailPage - 1) * detailItemsPerPage + index + 1 }}</td>
                 <td class="font-weight-bold text-primary">{{ item.maChiTietSanPham }}</td>
                 <td class="text-wrap-name text-center">{{ item.tenSanPham }}</td>
+                <td class="text-center">
+                    <div v-if="getProductDisplay(item).hasDiscount">
+                        <div class="old-price">{{ formatCurrency(getProductDisplay(item).originalPrice) }}</div>
+                        <div class="new-price">
+                            {{ formatCurrency(getProductDisplay(item).finalPrice) }}
+                            <span class="discount-tag">{{ getProductDisplay(item).badge }}</span>
+                        </div>
+                    </div>
+                    <div v-else class="font-weight-bold">{{ formatCurrency(item.giaNiemYet) }}</div>
+                </td>
 
                 <td class="text-center">{{ item.tenThuongHieu }}</td>
                 <td class="text-center">{{ item.soLuong }}</td>
@@ -243,6 +254,7 @@ const detailFilters = reactive({
   size: '',
   sole: ''
 });
+const activeDiscountsMap = ref({});
 
 // --- COMPUTED ---
 const productGroups = computed(() => {
@@ -340,10 +352,73 @@ watch(detailFilters, () => { currentDetailPage.value = 1; }, { deep: true });
 // --- METHODS ---
 const loadData = async () => {
   try {
-    rawVariants.value = await discountService.getAllProductDetails();
+    const [variants, discounts] = await Promise.all([
+        discountService.getAllProductDetails(),
+        discountService.getAll()
+    ]);
+    rawVariants.value = variants;
+    await loadActiveDiscounts(discounts);
   } catch (e) {
     console.error("Lỗi tải dữ liệu: ", e);
   }
+};
+
+// Helper: Parse date từ API
+const parseDate = (input) => {
+    if (Array.isArray(input)) {
+        return new Date(input[0], input[1] - 1, input[2]);
+    }
+    return new Date(input);
+};
+
+const loadActiveDiscounts = async (allDiscounts) => {
+    const now = new Date();
+    const active = allDiscounts.filter(d => {
+        if (!d.trangThai) return false;
+        const start = parseDate(d.ngayBatDau);
+        const end = parseDate(d.ngayKetThuc);
+        start.setHours(0,0,0,0); end.setHours(23,59,59,999);
+        return now >= start && now <= end;
+    });
+
+    const map = {};
+    for (const d of active) {
+        const details = await discountService.getDiscountDetails(d.id);
+        details.forEach(det => {
+            if (!map[det.idChiTietSanPham]) map[det.idChiTietSanPham] = [];
+            map[det.idChiTietSanPham].push({ value: d.giaTriGiamGia, isMoney: d.loaiGiamGia });
+        });
+    }
+    activeDiscountsMap.value = map;
+};
+
+const getProductDisplay = (variant) => {
+    // Use Listed Price (giaNiemYet) as the base for discount calculation
+    const price = variant.giaNiemYet || 0;
+    const discounts = activeDiscountsMap.value[variant.id];
+
+    if (!discounts || discounts.length === 0) {
+        return { hasDiscount: false, finalPrice: price, originalPrice: price, badge: null };
+    }
+
+    let minPrice = price;
+    let bestDiscount = null;
+
+    discounts.forEach(d => {
+        const discountAmount = d.isMoney ? d.value : (price * d.value / 100);
+        const currentPrice = price - discountAmount;
+        if (currentPrice < minPrice) {
+            minPrice = currentPrice;
+            bestDiscount = d;
+        }
+    });
+
+    const badge = bestDiscount.isMoney ? `-${Math.round((bestDiscount.value/price)*100)}%` : `-${bestDiscount.value}%`;
+    return { hasDiscount: true, finalPrice: Math.max(0, minPrice), originalPrice: price, badge };
+};
+
+const formatCurrency = (value) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 };
 
 const isGroupSelected = (parentId) => {
@@ -387,6 +462,36 @@ const removeAll = async () => {
     }
 };
 
+const checkOverlaps = async (newStart, newEnd, selectedIds) => {
+    const allDiscounts = await discountService.getAll();
+    const overlappingDiscounts = allDiscounts.filter(d => {
+        if (!d.trangThai) return false;
+        const dStart = parseDate(d.ngayBatDau);
+        const dEnd = parseDate(d.ngayKetThuc);
+        const nStart = new Date(newStart);
+        const nEnd = new Date(newEnd);
+
+        dStart.setHours(0,0,0,0); dEnd.setHours(23,59,59,999);
+        nStart.setHours(0,0,0,0); nEnd.setHours(23,59,59,999);
+
+        return nStart <= dEnd && nEnd >= dStart;
+    });
+
+    for (const discount of overlappingDiscounts) {
+        const details = await discountService.getDiscountDetails(discount.id);
+        const conflict = details.find(detail => selectedIds.includes(detail.idChiTietSanPham));
+        if (conflict) {
+             const variant = rawVariants.value.find(v => v.id === conflict.idChiTietSanPham);
+             return {
+                 overlap: true,
+                 discountName: discount.tenDotGiamGia,
+                 productName: variant ? variant.tenSanPham : 'Sản phẩm'
+             };
+        }
+    }
+    return { overlap: false };
+};
+
 const submitForm = async () => {
   if (!formData.tenDotGiamGia || !formData.ngayBatDau || !formData.ngayKetThuc) {
     Swal.fire('Thông báo', 'Vui lòng nhập đủ thông tin đợt giảm giá', 'warning');
@@ -394,6 +499,13 @@ const submitForm = async () => {
   }
   if (selectedVariantIds.value.length === 0) {
     Swal.fire('Thông báo', 'Vui lòng chọn ít nhất 1 sản phẩm', 'warning');
+    return;
+  }
+
+  // Validate Overlap
+  const overlapCheck = await checkOverlaps(formData.ngayBatDau, formData.ngayKetThuc, selectedVariantIds.value);
+  if (overlapCheck.overlap) {
+    Swal.fire('Lỗi trùng lặp', `Sản phẩm "${overlapCheck.productName}" đã nằm trong đợt giảm giá "${overlapCheck.discountName}" trong khoảng thời gian này.`, 'error');
     return;
   }
 
