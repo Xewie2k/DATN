@@ -242,6 +242,7 @@ const formData = reactive({
 
 const rawVariants = ref([]);
 const selectedVariantIds = ref([]);
+const displayedVariantIds = ref([]);
 const searchKeyword = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 5;
@@ -295,10 +296,10 @@ const changePage = (page) => {
   if (page >= 1 && page <= totalPages.value) currentPage.value = page;
 };
 
-const allSelectedVariants = computed(() => rawVariants.value.filter(v => selectedVariantIds.value.includes(v.id)));
+const allDisplayedVariants = computed(() => rawVariants.value.filter(v => displayedVariantIds.value.includes(v.id)));
 
 const filterOptions = computed(() => {
-  const data = allSelectedVariants.value;
+  const data = allDisplayedVariants.value;
   const getOptions = (key) => [...new Set(data.map(item => item[key]))].filter(Boolean).sort();
   return {
     brands: getOptions('tenThuongHieu'),
@@ -310,7 +311,7 @@ const filterOptions = computed(() => {
 });
 
 const variantsDisplay = computed(() => {
-  let list = allSelectedVariants.value;
+  let list = allDisplayedVariants.value;
   if (detailFilters.brand) list = list.filter(v => v.tenThuongHieu === detailFilters.brand);
   if (detailFilters.material) list = list.filter(v => v.tenChatLieu === detailFilters.material);
   if (detailFilters.color) list = list.filter(v => v.tenMauSac === detailFilters.color);
@@ -440,8 +441,14 @@ const handleParentCheck = (parentId, isChecked) => {
 };
 
 const toggleAllVariants = (e) => {
+  const visibleIds = variantsDisplay.value.map(v => v.id);
   if (e.target.checked) {
-     selectedVariantIds.value = [];
+     // Chọn tất cả những item đang hiển thị (gộp với những item đã chọn trước đó)
+     const uniqueIds = new Set([...selectedVariantIds.value, ...visibleIds]);
+     selectedVariantIds.value = Array.from(uniqueIds);
+  } else {
+     // Bỏ chọn những item đang hiển thị
+     selectedVariantIds.value = selectedVariantIds.value.filter(id => !visibleIds.includes(id));
   }
 };
 
@@ -464,31 +471,48 @@ const removeAll = async () => {
 
 const checkOverlaps = async (newStart, newEnd, selectedIds) => {
     const allDiscounts = await discountService.getAll();
+
+    const nStart = new Date(newStart);
+    nStart.setHours(0,0,0,0);
+    const nEnd = new Date(newEnd);
+    nEnd.setHours(23,59,59,999);
+
+    // Find campaigns that overlap with the new date range
     const overlappingDiscounts = allDiscounts.filter(d => {
         if (!d.trangThai) return false;
         const dStart = parseDate(d.ngayBatDau);
+        dStart.setHours(0,0,0,0);
         const dEnd = parseDate(d.ngayKetThuc);
-        const nStart = new Date(newStart);
-        const nEnd = new Date(newEnd);
-
-        dStart.setHours(0,0,0,0); dEnd.setHours(23,59,59,999);
-        nStart.setHours(0,0,0,0); nEnd.setHours(23,59,59,999);
-
+        dEnd.setHours(23,59,59,999);
         return nStart <= dEnd && nEnd >= dStart;
     });
 
-    for (const discount of overlappingDiscounts) {
-        const details = await discountService.getDiscountDetails(discount.id);
-        const conflict = details.find(detail => selectedIds.includes(detail.idChiTietSanPham));
-        if (conflict) {
-             const variant = rawVariants.value.find(v => v.id === conflict.idChiTietSanPham);
-             return {
-                 overlap: true,
-                 discountName: discount.tenDotGiamGia,
-                 productName: variant ? variant.tenSanPham : 'Sản phẩm'
-             };
-        }
+    if (overlappingDiscounts.length === 0) {
+        return { overlap: false };
     }
+
+    const overlappingDiscountIds = new Set(overlappingDiscounts.map(d => d.id));
+
+    // Due to a presumed backend bug, getDiscountDetails(anyId) returns ALL details.
+    // We call it once and then filter manually on the client-side.
+    // Pass the first ID just to satisfy the API contract.
+    const allDiscountDetails = await discountService.getDiscountDetails(overlappingDiscounts[0].id);
+
+    // Find the first product variant ID that is in the user's selection AND in a detail record belonging to an overlapping campaign.
+    const conflictDetail = allDiscountDetails.find(detail =>
+        selectedIds.includes(detail.idChiTietSanPham) && overlappingDiscountIds.has(detail.idDotGiamGia)
+    );
+
+    if (conflictDetail) {
+        const conflictingDiscount = overlappingDiscounts.find(d => d.id === conflictDetail.idDotGiamGia);
+        const variant = rawVariants.value.find(v => v.id === conflictDetail.idChiTietSanPham);
+        return {
+            overlap: true,
+            discountName: conflictingDiscount ? conflictingDiscount.tenDotGiamGia : 'một đợt khác',
+            productName: variant ? `${variant.tenSanPham} (${variant.maChiTietSanPham})` : 'Sản phẩm'
+        };
+    }
+
     return { overlap: false };
 };
 
