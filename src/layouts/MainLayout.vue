@@ -142,7 +142,7 @@ const toggleMenu = (index) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 15px;
+  padding: 12px 10px;
   cursor: pointer;
   color: #666;
   font-weight: 500;

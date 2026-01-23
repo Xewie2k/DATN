@@ -133,16 +133,22 @@ export const discountService = {
 
             // 3. Duyệt và enrich data
             const enrichedData = safeData(ctspData).map(item => {
-                const parentProduct = safeData(spData).find(p => p.id === item.idSanPham) || {};
+                let idSanPham = item.idSanPham || item.id_san_pham;
+                // Fix: Lấy ID từ object sanPham lồng nhau nếu có (trường hợp JPA trả về entity)
+                if (!idSanPham && item.sanPham) {
+                    idSanPham = item.sanPham.id;
+                }
+                const parentProduct = safeData(spData).find(p => p.id == idSanPham) || {};
 
                 const brandName = thuongHieuMap[parentProduct.idThuongHieu] || 'Chưa cập nhật';
                 const materialName = chatLieuMap[parentProduct.idChatLieu] || 'Chưa cập nhật';
 
                 return {
                     ...item,
+                    idSanPham: idSanPham, // Ensure idSanPham is populated for grouping
                     giaNiemYet: item.giaNiemYet || item.gia_niem_yet || item.giaBan, // Map Listed Price (fallback to giaBan if null)
                     maSanPham: parentProduct.maSanPham || 'SP-UNKNOWN',
-                    tenSanPham: sanPhamNameMap[item.idSanPham] || 'Sản phẩm lỗi',
+                    tenSanPham: sanPhamNameMap[idSanPham] || 'Sản phẩm lỗi',
                     tenMauSac: mauSacMap[item.idMauSac] || 'Không xác định',
                     tenKichThuoc: kichThuocMap[item.idKichThuoc] || 'FS',
                     tenLoaiSan: loaiSanMap[item.idLoaiSan] || 'Đế thường',

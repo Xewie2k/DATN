@@ -397,8 +397,6 @@ const parseDate = (input) => {
 const loadData = async () => {
   isLoading.value = true;
   try {
-    // 1. Load tất cả biến thể sản phẩm trước để có data map
-    rawVariants.value = await discountService.getAllProductDetails();
     // 1. Load data parallel
     const [variants, discountInfo, allDiscounts] = await Promise.all([
         discountService.getAllProductDetails(),
@@ -418,8 +416,15 @@ const loadData = async () => {
     // 3. Load danh sách chi tiết đã áp dụng (lấy ID để map vào selectedVariantIds)
     const appliedDetails = await discountService.getDiscountDetails(discountId);
     if (appliedDetails && appliedDetails.length > 0) {
+        // Filter details by discountId because API might return all details (backend bug workaround)
+        const filteredDetails = appliedDetails.filter(d => {
+             const dId = d.idDotGiamGia || (d.dotGiamGia ? d.dotGiamGia.id : null);
+             return dId == discountId;
+        });
         // Giả định API trả về mảng object có chứa idChiTietSanPham
-        selectedVariantIds.value = appliedDetails.map(item => item.idChiTietSanPham);
+        selectedVariantIds.value = filteredDetails.map(item =>
+            item.idChiTietSanPham || item.id_chi_tiet_san_pham || (item.chiTietSanPham ? item.chiTietSanPham.id : null)
+        ).filter(id => id != null);
     }
 
     // 4. Load active discounts
@@ -506,8 +511,14 @@ const handleParentCheck = (parentId, isChecked) => {
 };
 
 const toggleAllVariants = (e) => {
+  const visibleIds = variantsDisplay.value.map(v => v.id);
   if (e.target.checked) {
-     selectedVariantIds.value = []; // Hoặc logic select all trang hiện tại
+     // Chọn tất cả những item đang hiển thị
+     const uniqueIds = new Set([...selectedVariantIds.value, ...visibleIds]);
+     selectedVariantIds.value = Array.from(uniqueIds);
+  } else {
+     // Bỏ chọn những item đang hiển thị
+     selectedVariantIds.value = selectedVariantIds.value.filter(id => !visibleIds.includes(id));
   }
 };
 
